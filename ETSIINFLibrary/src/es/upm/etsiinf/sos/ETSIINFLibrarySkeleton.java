@@ -261,9 +261,34 @@ public class ETSIINFLibrarySkeleton {
 
     public es.upm.etsiinf.sos.ListBooksResponse listBooks(
             es.upm.etsiinf.sos.ListBooks listBooks) {
-        // TODO : fill this with the necessary business logic
-        throw new java.lang.UnsupportedOperationException(
-                "Please implement " + this.getClass().getName() + "#listBooks");
+        es.upm.etsiinf.sos.ListBooksResponse response = new es.upm.etsiinf.sos.ListBooksResponse();
+        es.upm.etsiinf.sos.model.xsd.BookList bookList = new es.upm.etsiinf.sos.model.xsd.BookList();
+
+        if (userSession == null) {
+            bookList.setResult(false);
+            bookList.setBookNames(new String[0]);
+            bookList.setIssns(new String[0]);
+            response.set_return(bookList);
+            logger.info("listBooks: usuario no autenticado");
+            return response;
+        }
+
+        bookList.setResult(true);
+        int n = books.size();
+        String[] bookNames = new String[n];
+        String[] issns = new String[n];
+
+        for (int i = 0; i < n; i++) {
+            Book b = books.get(n - 1 - i);
+            bookNames[i] = b.getName();
+            issns[i] = b.getISSN();
+        }
+        
+        bookList.setBookNames(bookNames);
+        bookList.setIssns(issns);
+        response.set_return(bookList);
+        logger.info("listBooks: devueltos " + n + " libros");
+        return response;
     }
 
     /**
