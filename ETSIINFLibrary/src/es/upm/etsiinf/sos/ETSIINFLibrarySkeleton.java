@@ -220,8 +220,36 @@ public class ETSIINFLibrarySkeleton {
 
     public es.upm.etsiinf.sos.GetBookResponse getBook(
             es.upm.etsiinf.sos.GetBook getBook) {
-        // TODO : fill this with the necessary business logic
-        throw new java.lang.UnsupportedOperationException("Please implement " + this.getClass().getName() + "#getBook");
+        es.upm.etsiinf.sos.GetBookResponse response = new es.upm.etsiinf.sos.GetBookResponse();
+        es.upm.etsiinf.sos.model.xsd.Book bookResult = new es.upm.etsiinf.sos.model.xsd.Book();
+
+        // Verificar que hay un usuario autenticado
+        if (userSession == null) {
+            logger.info("No hay usuario autenticado para getBook");
+            response.set_return(bookResult); // Devuelve objeto vacío
+            return response;
+        }
+
+        String issn = getBook.getArgs0();
+        if (issn == null || issn.trim().isEmpty()) {
+            logger.info("ISSN no proporcionado o vacío en getBook");
+            response.set_return(bookResult); // Devuelve objeto vacío
+            return response;
+        }
+
+        // Buscar el libro por ISSN
+        synchronized (books) {
+            for (Book b : books) {
+                if (issn.equals(b.getISSN())) {
+                    response.set_return(b);
+                    return response;
+                }
+            }
+        }
+        // Si no se encuentra, devuelve objeto vacío
+        logger.info("No se encontró libro con ISSN: " + issn);
+        response.set_return(bookResult);
+        return response;
     }
 
     /**
