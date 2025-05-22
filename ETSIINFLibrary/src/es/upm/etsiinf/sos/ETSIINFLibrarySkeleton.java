@@ -1,4 +1,3 @@
-
 /**
  * ETSIINFLibrarySkeleton.java
  *
@@ -18,6 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 import es.upm.etsiinf.sos.model.xsd.Response;
+import es.upm.etsiinf.sos.model.xsd.User;
 import es.upm.etsiinf.sos.model.xsd.Book;
 import es.upm.etsiinf.sos.model.xsd.MyUser;
 import es.upm.fi.sos.t3.backend.UPMAuthenticationAuthorizationWSSkeletonStub;
@@ -36,8 +36,9 @@ public class ETSIINFLibrarySkeleton {
 
     private static final Logger logger = Logger.getLogger(ETSIINFLibrarySkeleton.class.getName());
 
-    // Almacén de libros en memoria
     private static final List<Book> books = new ArrayList<>();
+
+    private Map<User, List<Book>> prestamos = new HashMap<>();
 
     private String generateSessionId() {
         return UUID.randomUUID().toString();
@@ -101,9 +102,52 @@ public class ETSIINFLibrarySkeleton {
 
     public es.upm.etsiinf.sos.RemoveBookResponse removeBook(
             es.upm.etsiinf.sos.RemoveBook removeBook) {
-        // TODO : fill this with the necessary business logic
-        throw new java.lang.UnsupportedOperationException(
-                "Please implement " + this.getClass().getName() + "#removeBook");
+        es.upm.etsiinf.sos.RemoveBookResponse response = new es.upm.etsiinf.sos.RemoveBookResponse();
+        es.upm.etsiinf.sos.model.xsd.Response responseAttr = new es.upm.etsiinf.sos.model.xsd.Response();
+        responseAttr.setResponse(false);
+
+        // Solo admin puede eliminar libros
+        if (userSession == null || !userSession.equals(ADMIN)) {
+            logger.info("Acceso denegado: solo el usuario admin puede eliminar libros");
+            response.set_return(responseAttr);
+            return response;
+        }
+
+        String issn = removeBook.getArgs0();
+        if (issn == null || issn.trim().isEmpty()) {
+            logger.info("ISSN inválido");
+            response.set_return(responseAttr);
+            return response;
+        }
+
+        // Buscar un ejemplar con ese ISSN que no esté prestado
+        synchronized (books) {
+            for (int i = 0; i < books.size(); i++) {
+                Book book = books.get(i);
+                if (issn.equals(book.getISSN())) {
+                    boolean prestado = false;
+                    for (List<Book> librosPrestados : prestamos.values()) {
+                        if (librosPrestados != null && librosPrestados.contains(book)) {
+                            prestado = true;
+                            break;
+                        }
+                    }
+                    if (prestado) {
+                        logger.info("No se puede eliminar el libro: está prestado");
+                        response.set_return(responseAttr);
+                        return response;
+                    }
+                    books.remove(i);
+                    logger.info("Ejemplar eliminado correctamente: ISSN " + issn);
+                    responseAttr.setResponse(true);
+                    response.set_return(responseAttr);
+                    return response;
+                }
+            }
+        }
+        logger.info("No se encontró ejemplar con ISSN: " + issn + " o está prestado");
+        response.set_return(responseAttr);
+        return response;
     }
 
     /**
@@ -305,7 +349,7 @@ public class ETSIINFLibrarySkeleton {
             response.set_return(responseAttr);
             return response;
         }
-        
+
         books.add(book);
         logger.info("Libro añadido correctamente: " + name + " (ISSN: " + issn + ")");
         responseAttr.setResponse(true);
