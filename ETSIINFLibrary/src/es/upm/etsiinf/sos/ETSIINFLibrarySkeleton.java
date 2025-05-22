@@ -11,9 +11,15 @@ import java.rmi.RemoteException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
+import es.upm.etsiinf.sos.model.xsd.Response;
+import es.upm.etsiinf.sos.model.xsd.Book;
+import es.upm.etsiinf.sos.model.xsd.MyUser;
 import es.upm.fi.sos.t3.backend.UPMAuthenticationAuthorizationWSSkeletonStub;
 
 /**
@@ -30,8 +36,20 @@ public class ETSIINFLibrarySkeleton {
 
     private static final Logger logger = Logger.getLogger(ETSIINFLibrarySkeleton.class.getName());
 
+    // Almacén de libros en memoria
+    private static final List<Book> books = new ArrayList<>();
+
     private String generateSessionId() {
         return UUID.randomUUID().toString();
+    }
+
+    private boolean isUserAlreadyLoggedIn(String loginUserName) {
+        return activeUserSessions.containsKey(loginUserName);
+    }
+
+    private boolean isAdmin(String loginUserName, String loginUserPwd) {
+        return ADMIN.getUserName().equals(loginUserName) && ADMIN.getPassword().equals(loginUserPwd);
+    }
 
     /**
      * Auto generated method signature
@@ -258,8 +276,41 @@ public class ETSIINFLibrarySkeleton {
 
     public es.upm.etsiinf.sos.AddBookResponse addBook(
             es.upm.etsiinf.sos.AddBook addBook) {
-        // TODO : fill this with the necessary business logic
-        throw new java.lang.UnsupportedOperationException("Please implement " + this.getClass().getName() + "#addBook");
+        es.upm.etsiinf.sos.AddBookResponse response = new es.upm.etsiinf.sos.AddBookResponse();
+        es.upm.etsiinf.sos.model.xsd.Response responseAttr = new es.upm.etsiinf.sos.model.xsd.Response();
+        responseAttr.setResponse(false);
+
+        if (userSession == null || !userSession.equals(ADMIN)) {
+            logger.info("Acceso denegado: solo el usuario admin puede añadir libros");
+            response.set_return(responseAttr);
+            return response;
+        }
+
+        Book book = addBook.getArgs0();
+        if (book == null) {
+            logger.info("Libro nulo");
+            response.set_return(responseAttr);
+            return response;
+        }
+
+        String name = book.getName();
+        String issn = book.getISSN();
+        String[] authors = book.getAuthors();
+
+        boolean valid = name != null && !name.trim().isEmpty()
+                && issn != null && !issn.trim().isEmpty()
+                && authors != null && authors.length > 0;
+        if (!valid) {
+            logger.info("Libro inválido: faltan campos obligatorios");
+            response.set_return(responseAttr);
+            return response;
+        }
+        
+        books.add(book);
+        logger.info("Libro añadido correctamente: " + name + " (ISSN: " + issn + ")");
+        responseAttr.setResponse(true);
+        response.set_return(responseAttr);
+        return response;
     }
 
     /**
