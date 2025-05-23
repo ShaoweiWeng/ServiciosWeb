@@ -37,7 +37,7 @@ public class ETSIINFLibrarySkeleton {
     private static final Logger logger = Logger.getLogger(ETSIINFLibrarySkeleton.class.getName());
 
     private static final List<Book> books = new ArrayList<>();
-
+    private static final Map<String, Integer> ejemplares = new HashMap<>();
     private Map<User, List<Book>> prestamos = new HashMap<>();
 
     private String generateSessionId() {
@@ -120,7 +120,6 @@ public class ETSIINFLibrarySkeleton {
             return response;
         }
 
-        // Buscar un ejemplar con ese ISSN que no esté prestado
         synchronized (books) {
             for (int i = 0; i < books.size(); i++) {
                 Book book = books.get(i);
@@ -137,8 +136,15 @@ public class ETSIINFLibrarySkeleton {
                         response.set_return(responseAttr);
                         return response;
                     }
-                    books.remove(i);
-                    logger.info("Ejemplar eliminado correctamente: ISSN " + issn);
+                    int numEjemplares = ejemplares.getOrDefault(issn, 0);
+                    if (numEjemplares > 1) {
+                        ejemplares.put(issn, numEjemplares - 1);
+                        logger.info("Ejemplar eliminado, quedan " + (numEjemplares - 1) + " ejemplares de ISSN: " + issn);
+                    } else {
+                        ejemplares.remove(issn);
+                        books.remove(i);
+                        logger.info("Último ejemplar eliminado, libro borrado de la biblioteca: ISSN " + issn);
+                    }
                     responseAttr.setResponse(true);
                     response.set_return(responseAttr);
                     return response;
@@ -403,8 +409,23 @@ public class ETSIINFLibrarySkeleton {
             return response;
         }
 
-        books.add(book);
-        logger.info("Libro añadido correctamente: " + name + " (ISSN: " + issn + ")");
+        synchronized (books) {
+            boolean existe = false;
+            for (Book b : books) {
+                if (issn.equals(b.getISSN())) {
+                    existe = true;
+                    break;
+                }
+            }
+            if (existe) {
+                ejemplares.put(issn, ejemplares.get(issn) + 1);
+                logger.info("Ejemplar añadido a libro existente: " + name + " (ISSN: " + issn + ")");
+            } else {
+                books.add(book);
+                ejemplares.put(issn, 1);
+                logger.info("Libro añadido correctamente: " + name + " (ISSN: " + issn + ")");
+            }
+        }
         responseAttr.setResponse(true);
         response.set_return(responseAttr);
         return response;
