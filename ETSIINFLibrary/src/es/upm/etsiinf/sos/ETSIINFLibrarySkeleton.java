@@ -26,7 +26,7 @@ import es.upm.fi.sos.t3.backend.UPMAuthenticationAuthorizationWSSkeletonStub;
 /**
  * ETSIINFLibrarySkeleton java skeleton for the axisService
  */
-public class ETSIINFLibrarySkeleton implements Lifecycle {
+public class ETSIINFLibrarySkeleton {
 	private UPMAuthenticationAuthorizationWSSkeletonStub serviceStub;
 
 	private static final MyUser ADMIN = new MyUser("admin", "admin");
@@ -54,17 +54,6 @@ public class ETSIINFLibrarySkeleton implements Lifecycle {
 			}
 		}
 		return false;
-	}
-
-	public void init(ServiceContext context) {
-		context.getConfigurationContext().setProperty("ConfigContextTimeoutInterval", 600000);
-		logger.info("Starting up instance " + sessionId);
-		logger.info("The context timeout interval set is "
-				+ context.getConfigurationContext().getServiceGroupContextTimeoutInterval());
-	}
-
-	public void destroy(ServiceContext context) {
-		logger.info("Shutting down instance " + sessionId);
 	}
 
 	public ETSIINFLibrarySkeleton() throws AxisFault {
