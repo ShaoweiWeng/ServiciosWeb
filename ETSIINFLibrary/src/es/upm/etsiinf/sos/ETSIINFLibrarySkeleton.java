@@ -180,10 +180,10 @@ public class ETSIINFLibrarySkeleton {
 				registeredUsers.put("admin", user);
 				System.out.println("Admin added to local registry: " + loginUserName);
 			}
-			
+
 			userSession = user;
 			response.setResponse(true);
-			
+
 			if (!activeUserSessions.containsKey("admin")) {
 				List<ETSIINFLibrarySkeleton> session = new ArrayList<>();
 				session.add(this);
@@ -194,7 +194,7 @@ public class ETSIINFLibrarySkeleton {
 				System.out.println("Added new session admin");
 				System.out.println("Total sessions for admin: " + activeUserSessions.get("admin").size());
 			}
-			
+
 			System.out.println("Admin logged in successfully");
 		} else {
 			try {
@@ -469,8 +469,7 @@ public class ETSIINFLibrarySkeleton {
 	 * @return borrowBookResponse
 	 */
 
-	public es.upm.etsiinf.sos.BorrowBookResponse borrowBook(
-			es.upm.etsiinf.sos.BorrowBook borrowBook) {
+	public es.upm.etsiinf.sos.BorrowBookResponse borrowBook(es.upm.etsiinf.sos.BorrowBook borrowBook) {
 		es.upm.etsiinf.sos.BorrowBookResponse response = new es.upm.etsiinf.sos.BorrowBookResponse();
 		es.upm.etsiinf.sos.model.xsd.Response result = new es.upm.etsiinf.sos.model.xsd.Response();
 
@@ -536,8 +535,7 @@ public class ETSIINFLibrarySkeleton {
 	 * @return returnBookResponse
 	 */
 
-	public es.upm.etsiinf.sos.ReturnBookResponse returnBook(
-			es.upm.etsiinf.sos.ReturnBook returnBook) {
+	public es.upm.etsiinf.sos.ReturnBookResponse returnBook(es.upm.etsiinf.sos.ReturnBook returnBook) {
 		es.upm.etsiinf.sos.ReturnBookResponse response = new es.upm.etsiinf.sos.ReturnBookResponse();
 		es.upm.etsiinf.sos.model.xsd.Response result = new es.upm.etsiinf.sos.model.xsd.Response();
 		result.setResponse(false);
