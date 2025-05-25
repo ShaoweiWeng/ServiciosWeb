@@ -31,9 +31,6 @@ public class ETSIINFLibrarySkeleton {
 
 	private User userSession;
 
-	private int sessionId;
-	private static int sessionCounter = 0;
-
 	private static Map<String, User> registeredUsers = new HashMap<>();
 	private static Map<String, List<ETSIINFLibrarySkeleton>> activeUserSessions = new HashMap<>();
 
@@ -55,7 +52,6 @@ public class ETSIINFLibrarySkeleton {
 	}
 
 	public ETSIINFLibrarySkeleton() {
-		sessionId = sessionCounter++;
 		userSession = null;
 		try {
 			serviceStub = new UPMAuthenticationAuthorizationWSSkeletonStub();
@@ -161,28 +157,47 @@ public class ETSIINFLibrarySkeleton {
 		System.out.println("Attempting login for user: " + loginUserName);
 		System.out.println("Current session user: " + (userSession != null ? userSession.getName() : "null"));
 		System.out.println("Currently registered users: " + registeredUsers.keySet());
-		System.out.println("Active user sessions: " + activeUserSessions.keySet());
 
 		LoginResponse loginResponse = new LoginResponse();
 		Response response = new Response();
 		response.setResponse(false);
 
-		// Case 1: User is already logged in
 		if (userSession != null) {
 			if (loginUserName.equals(userSession.getName())) {
 				response.setResponse(true);
-				System.out.println("User " + loginUserName + " is already logged in.");
+				System.out.println("User " + loginUserName + " is already logged in");
 			} else {
-				System.out.println("A different user (" + loginUserName
-						+ ") is attempting to log in to the current session");
+				System.out.println(
+						"A different user (" + loginUserName + ") is attempting to log in to the current session");
 				System.out.println("Current session belongs to: " + userSession.getName());
+				System.out.println("Please log out first to switch users");
+				System.out.println("=== End login ===");
+				response.setResponse(false);
+				return loginResponse;
 			}
-			// Case 2: User is ADMIN and not logged in
-		} else if (loginUserName.equals("admin") && loginUserPwd.equals("admin")) {
+		}
+
+		if (loginUserName.equals("admin") && loginUserPwd.equals("admin")) {
+			if (!registeredUsers.containsKey("admin")) {
+				registeredUsers.put("admin", user);
+				System.out.println("Admin added to local registry: " + loginUserName);
+			}
+			
 			userSession = user;
 			response.setResponse(true);
+			
+			if (!activeUserSessions.containsKey("admin")) {
+				List<ETSIINFLibrarySkeleton> session = new ArrayList<>();
+				session.add(this);
+				activeUserSessions.put(loginUserName, session);
+				System.out.println("New session created admin");
+			} else {
+				activeUserSessions.get(loginUserName).add(this);
+				System.out.println("Added new session admin");
+				System.out.println("Total sessions for admin: " + activeUserSessions.get("admin").size());
+			}
+			
 			System.out.println("Admin logged in successfully");
-			// Case 3: Regular user login
 		} else {
 			try {
 				System.out.println("Preparing external service call...");
@@ -206,41 +221,33 @@ public class ETSIINFLibrarySkeleton {
 
 				if (result) {
 					if (!registeredUsers.containsKey(loginUserName)) {
-						System.out.println("User not found in local registry, adding...");
 						User loginUser = new User();
 						loginUser.setName(loginUserName);
 						loginUser.setPwd(loginUserPwd);
 						registeredUsers.put(loginUserName, loginUser);
-						userSession = loginUser;
-						System.out.println("User " + loginUserName
-								+ " was not registered locally, added to local register and logged in successfully");
-					} else {
-						userSession = registeredUsers.get(loginUserName);
-						System.out.println("User " + loginUserName + " logged in successfully");
+						System.out.println("User added to local registry: " + loginUserName);
 					}
 
+					userSession = registeredUsers.get(loginUserName);
+
 					if (!activeUserSessions.containsKey(loginUserName)) {
-						System.out.println("Creating new session for user: " + loginUserName);
 						List<ETSIINFLibrarySkeleton> session = new ArrayList<>();
 						session.add(this);
 						activeUserSessions.put(loginUserName, session);
+						System.out.println("New session created for user: " + loginUserName);
 					} else {
-						System.out.println("Adding to existing session for user: " + loginUserName);
 						activeUserSessions.get(loginUserName).add(this);
+						System.out.println("Added new session for user: " + loginUserName);
+						System.out.println("Total sessions for user: " + activeUserSessions.get(loginUserName).size());
 					}
-					// response.setResponse(true);
+					System.out.println("User " + loginUserName + " logged in successfully");
 				} else {
-					System.out.println("ERROR: Logging user " + loginUserName + " operation failed");
-					System.out.println("Possible reasons:");
-					System.out.println("- Invalid credentials");
-					System.out.println("- User not registered in external system");
-					System.out.println("- External service error");
+					System.out.println("ERROR: Login failed for user: " + loginUserName);
 				}
 			} catch (RemoteException e) {
 				e.printStackTrace();
 			}
 		}
-
 		System.out.println("=== End login ===");
 		loginResponse.set_return(response);
 		return loginResponse;
@@ -265,12 +272,7 @@ public class ETSIINFLibrarySkeleton {
 		} else {
 			String userName = userSession.getName();
 			System.out.println("Attempting to logout user: " + userName);
-			System.out.println("Current active sessions: ");
-			for (ETSIINFLibrarySkeleton session : activeUserSessions.get(userName)) {
-				System.out.println(" - Session ID: " + session);
-			}
-			System.out.println("Number of sessions for user " + userName + ": "
-					+ (activeUserSessions.containsKey(userName) ? activeUserSessions.get(userName).size() : 0));
+			System.out.println("Current active sessions: " + activeUserSessions.get(userName).size());
 
 			if (activeUserSessions.containsKey(userName)) {
 				int sessions = activeUserSessions.get(userName).size();
@@ -327,7 +329,8 @@ public class ETSIINFLibrarySkeleton {
 		}
 
 		if (!userSession.getName().equals("admin") || !registeredUsers.containsKey(userNameToDelete)) {
-			System.out.println("Must be admin to delete this user / or user does not exist");
+			System.out.println(
+					"Must be admin to delete this user / or user does not exist locally, must be registered first");
 			deleteUserResponse.set_return(response);
 			return deleteUserResponse;
 		}
@@ -408,7 +411,7 @@ public class ETSIINFLibrarySkeleton {
 
 		if (userSession.getName().equals("admin") && oldPassword.equals("admin")) {
 			System.out.println("Processing admin password change...");
-			ADMIN.setPassword(newPassword);
+			userSession.setPwd(newPassword);
 			response.setResponse(true);
 			System.out.println("Admin password changed successfully");
 		} else if (userSession.getPwd().equals(oldPassword)) {
