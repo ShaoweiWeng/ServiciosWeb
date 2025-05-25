@@ -18,7 +18,6 @@ import org.apache.axis2.AxisFault;
 import es.upm.etsiinf.sos.model.xsd.Response;
 import es.upm.etsiinf.sos.model.xsd.User;
 import es.upm.etsiinf.sos.model.xsd.Book;
-import es.upm.etsiinf.sos.model.xsd.MyUser;
 import es.upm.fi.sos.t3.backend.UPMAuthenticationAuthorizationWSSkeletonStub;
 
 /**
@@ -26,8 +25,6 @@ import es.upm.fi.sos.t3.backend.UPMAuthenticationAuthorizationWSSkeletonStub;
  */
 public class ETSIINFLibrarySkeleton {
 	private UPMAuthenticationAuthorizationWSSkeletonStub serviceStub;
-
-	private static final MyUser ADMIN = new MyUser("admin", "admin"); // ¡BORRAR!
 
 	private User userSession;
 
@@ -500,7 +497,7 @@ public class ETSIINFLibrarySkeleton {
 		responseAttr.setResponse(false);
 
 		// Solo admin puede eliminar libros
-		if (userSession == null || !userSession.equals(ADMIN)) {
+		if (userSession == null || !userSession.getName().equals("admin")) {
 			logger.info("Acceso denegado: solo el usuario admin puede eliminar libros");
 			response.set_return(responseAttr);
 			return response;
@@ -640,7 +637,7 @@ public class ETSIINFLibrarySkeleton {
 		es.upm.etsiinf.sos.model.xsd.Response responseAttr = new es.upm.etsiinf.sos.model.xsd.Response();
 		responseAttr.setResponse(false);
 
-		if (userSession == null || !userSession.equals(ADMIN)) {
+		if (userSession == null || !userSession.getName().equals("admin")) {
 			logger.info("Acceso denegado: solo el usuario admin puede añadir libros");
 			response.set_return(responseAttr);
 			return response;
