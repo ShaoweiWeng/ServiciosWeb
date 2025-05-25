@@ -8,6 +8,7 @@ package es.upm.etsiinf.sos;
 
 import java.rmi.RemoteException;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.List;
 import java.util.ArrayList;
@@ -465,10 +466,64 @@ public class ETSIINFLibrarySkeleton {
 	 * @return borrowBookResponse
 	 */
 
-	public es.upm.etsiinf.sos.BorrowBookResponse borrowBook(es.upm.etsiinf.sos.BorrowBook borrowBook) {
-		// TODO : fill this with the necessary business logic
-		throw new java.lang.UnsupportedOperationException(
-				"Please implement " + this.getClass().getName() + "#borrowBook");
+	public es.upm.etsiinf.sos.BorrowBookResponse borrowBook(
+			es.upm.etsiinf.sos.BorrowBook borrowBook) {
+		es.upm.etsiinf.sos.BorrowBookResponse response = new es.upm.etsiinf.sos.BorrowBookResponse();
+		es.upm.etsiinf.sos.model.xsd.Response result = new es.upm.etsiinf.sos.model.xsd.Response();
+
+		if (userSession == null) {
+			logger.info("borrowBook: usuario no autenticado");
+			result.setResponse(false);
+			response.set_return(result);
+			return response;
+		}
+
+		String isbn = borrowBook.getArgs0();
+		logger.info("borrowBook: usuario autenticado - " + userSession.getName() + " solicita ISBN: " + isbn);
+
+		Book libroEncontrado = null;
+		for (Book libro : books) {
+			if (libro.getISSN().equalsIgnoreCase(isbn)) {
+				libroEncontrado = libro;
+				break;
+			}
+		}
+
+		if (libroEncontrado == null) {
+			logger.info("borrowBook: libro no encontrado con ISBN " + isbn);
+			result.setResponse(false);
+			response.set_return(result);
+			return response;
+		}
+
+		if (!ejemplares.containsKey(isbn) || ejemplares.get(isbn) <= 0) {
+			logger.info("borrowBook: no hay ejemplares disponibles para el ISBN " + isbn);
+			result.setResponse(false);
+			response.set_return(result);
+			return response;
+		}
+
+		List<Book> librosPrestados = prestamos.getOrDefault(userSession, new ArrayList<>());
+		for (Book prestado : librosPrestados) {
+			if (prestado.getISSN().equalsIgnoreCase(isbn)) {
+				logger.info("borrowBook: el usuario ya tiene prestado el libro con ISBN " + isbn);
+				result.setResponse(false);
+				response.set_return(result);
+				return response;
+			}
+		}
+
+		librosPrestados.add(libroEncontrado);
+		prestamos.put(userSession, librosPrestados);
+
+		int disponibles = ejemplares.get(isbn);
+		ejemplares.put(isbn, disponibles - 1);
+
+		logger.info("borrowBook: préstamo realizado correctamente. Ejemplares restantes: " + (disponibles - 1));
+
+		result.setResponse(true);
+		response.set_return(result);
+		return response;
 	}
 
 	/**
@@ -478,10 +533,46 @@ public class ETSIINFLibrarySkeleton {
 	 * @return returnBookResponse
 	 */
 
-	public es.upm.etsiinf.sos.ReturnBookResponse returnBook(es.upm.etsiinf.sos.ReturnBook returnBook) {
-		// TODO : fill this with the necessary business logic
-		throw new java.lang.UnsupportedOperationException(
-				"Please implement " + this.getClass().getName() + "#returnBook");
+	public es.upm.etsiinf.sos.ReturnBookResponse returnBook(
+			es.upm.etsiinf.sos.ReturnBook returnBook) {
+		es.upm.etsiinf.sos.ReturnBookResponse response = new es.upm.etsiinf.sos.ReturnBookResponse();
+		es.upm.etsiinf.sos.model.xsd.Response result = new es.upm.etsiinf.sos.model.xsd.Response();
+		result.setResponse(false);
+
+		if (userSession == null) {
+			logger.info("returnBook: usuario no autenticado");
+			response.set_return(result);
+			return response;
+		}
+
+		String isbn = returnBook.getArgs0();
+		logger.info("returnBook: solicitando devolución de ISBN " + isbn + " por usuario " + userSession.getName());
+
+		List<Book> librosPrestados = prestamos.get(userSession);
+		if (librosPrestados != null) {
+			Iterator<Book> it = librosPrestados.iterator();
+			while (it.hasNext()) {
+				Book libro = it.next();
+				if (libro.getISSN().equalsIgnoreCase(isbn)) {
+					it.remove();
+					if (ejemplares.containsKey(isbn)) {
+						int disponibles = ejemplares.get(isbn);
+						ejemplares.put(isbn, disponibles + 1);
+					} else {
+						ejemplares.put(isbn, 1);
+					}
+					prestamos.put(userSession, librosPrestados);
+					logger.info("returnBook: libro devuelto con éxito");
+					result.setResponse(true);
+					break;
+				}
+			}
+		}
+		if (!result.getResponse()) {
+			logger.info("returnBook: el libro no estaba en la lista de préstamos del usuario");
+		}
+		response.set_return(result);
+		return response;
 	}
 
 	/**
@@ -693,9 +784,50 @@ public class ETSIINFLibrarySkeleton {
 
 	public es.upm.etsiinf.sos.GetBooksFromAuthorResponse getBooksFromAuthor(
 			es.upm.etsiinf.sos.GetBooksFromAuthor getBooksFromAuthor) {
-		// TODO : fill this with the necessary business logic
-		throw new java.lang.UnsupportedOperationException(
-				"Please implement " + this.getClass().getName() + "#getBooksFromAuthor");
+		es.upm.etsiinf.sos.GetBooksFromAuthorResponse response = new es.upm.etsiinf.sos.GetBooksFromAuthorResponse();
+		es.upm.etsiinf.sos.model.xsd.BookList bookList = new es.upm.etsiinf.sos.model.xsd.BookList();
+
+		if (userSession == null) {
+			bookList.setResult(false);
+			bookList.setBookNames(new String[0]);
+			bookList.setIssns(new String[0]);
+			response.set_return(bookList);
+			logger.info("getBooksFromAuthor: usuario no autenticado");
+			return response;
+		}
+
+		String authorName = getBooksFromAuthor.getArgs0().getName();
+		logger.info("getBooksFromAuthor: buscando libros del autor \"" + authorName + "\"");
+
+		List<Book> librosAutor = new ArrayList<>();
+		for (Book libro : books) {
+			String[] autores = libro.getAuthors();
+			if (autores != null) {
+				for (String autor : autores) {
+					if (autor != null && autor.equalsIgnoreCase(authorName)) {
+						librosAutor.add(libro);
+						break;
+					}
+				}
+			}
+		}
+
+		int n = librosAutor.size();
+		String[] bookNames = new String[n];
+		String[] issns = new String[n];
+
+		for (int i = 0; i < n; i++) {
+			Book b = librosAutor.get(n - 1 - i);
+			bookNames[i] = b.getName();
+			issns[i] = b.getISSN();
+		}
+
+		bookList.setResult(true);
+		bookList.setBookNames(bookNames);
+		bookList.setIssns(issns);
+		response.set_return(bookList);
+		logger.info("getBooksFromAuthor: devueltos " + n + " libros del autor \"" + authorName + "\"");
+		return response;
 	}
 
 	/**
@@ -707,9 +839,37 @@ public class ETSIINFLibrarySkeleton {
 
 	public es.upm.etsiinf.sos.ListBorrowedBooksResponse listBorrowedBooks(
 			es.upm.etsiinf.sos.ListBorrowedBooks listBorrowedBooks) {
-		// TODO : fill this with the necessary business logic
-		throw new java.lang.UnsupportedOperationException(
-				"Please implement " + this.getClass().getName() + "#listBorrowedBooks");
+		es.upm.etsiinf.sos.ListBorrowedBooksResponse response = new es.upm.etsiinf.sos.ListBorrowedBooksResponse();
+		es.upm.etsiinf.sos.model.xsd.BookList bookList = new es.upm.etsiinf.sos.model.xsd.BookList();
+
+		if (userSession == null) {
+			bookList.setResult(false);
+			bookList.setBookNames(new String[0]);
+			bookList.setIssns(new String[0]);
+			response.set_return(bookList);
+			logger.info("listBorrowedBooks: usuario no autenticado");
+			return response;
+		}
+
+		List<Book> librosPrestados = prestamos.getOrDefault(userSession, new ArrayList<>());
+
+		int n = librosPrestados.size();
+		String[] bookNames = new String[n];
+		String[] issns = new String[n];
+
+		for (int i = 0; i < n; i++) {
+			Book b = librosPrestados.get(n - 1 - i);
+			bookNames[i] = b.getName();
+			issns[i] = b.getISSN();
+		}
+
+		bookList.setResult(true);
+		bookList.setBookNames(bookNames);
+		bookList.setIssns(issns);
+		response.set_return(bookList);
+
+		logger.info("listBorrowedBooks: devueltos " + n + " libros prestados para el usuario " + userSession.getName());
+		return response;
 	}
 
 }
