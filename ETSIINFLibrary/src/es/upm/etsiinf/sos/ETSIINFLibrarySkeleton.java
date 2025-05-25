@@ -14,8 +14,6 @@ import java.util.ArrayList;
 import java.util.logging.Logger;
 
 import org.apache.axis2.AxisFault;
-import org.apache.axis2.context.ServiceContext;
-import org.apache.axis2.service.Lifecycle;
 
 import es.upm.etsiinf.sos.model.xsd.Response;
 import es.upm.etsiinf.sos.model.xsd.User;
@@ -29,21 +27,21 @@ import es.upm.fi.sos.t3.backend.UPMAuthenticationAuthorizationWSSkeletonStub;
 public class ETSIINFLibrarySkeleton {
 	private UPMAuthenticationAuthorizationWSSkeletonStub serviceStub;
 
-	private static final MyUser ADMIN = new MyUser("admin", "admin");
+	private static final MyUser ADMIN = new MyUser("admin", "admin"); // ¡BORRAR!
 
-	private MyUser userSession;
+	private User userSession;
 
 	private int sessionId;
-	private int sessionCounter = 0;
+	private static int sessionCounter = 0;
 
-	private Map<String, MyUser> registeredUsers = new HashMap<>();
-	private Map<String, List<ETSIINFLibrarySkeleton>> activeUserSessions = new HashMap<>();
+	private static Map<String, User> registeredUsers = new HashMap<>();
+	private static Map<String, List<ETSIINFLibrarySkeleton>> activeUserSessions = new HashMap<>();
 
 	private static final Logger logger = Logger.getLogger(ETSIINFLibrarySkeleton.class.getName());
 
-	private static final List<Book> books = new ArrayList<>();
-	private static final Map<String, Integer> ejemplares = new HashMap<>();
-	private Map<User, List<Book>> prestamos = new HashMap<>();
+	private static List<Book> books = new ArrayList<>();
+	private static Map<String, Integer> ejemplares = new HashMap<>();
+	private static Map<User, List<Book>> prestamos = new HashMap<>();
 
 	private boolean hasBorrowedBooks(String userName) {
 		for (Map.Entry<User, List<Book>> entries : prestamos.entrySet()) {
@@ -56,7 +54,7 @@ public class ETSIINFLibrarySkeleton {
 		return false;
 	}
 
-	public ETSIINFLibrarySkeleton() throws AxisFault {
+	public ETSIINFLibrarySkeleton() {
 		sessionId = sessionCounter++;
 		userSession = null;
 		try {
@@ -74,42 +72,74 @@ public class ETSIINFLibrarySkeleton {
 	 */
 
 	public es.upm.etsiinf.sos.AddUserResponse addUser(es.upm.etsiinf.sos.AddUser addUser) {
+		System.out.println("\n=== Start addUser ===");
+
 		String userName = addUser.getArgs0().getUsername();
+		System.out.println("Attempting to add user: " + userName);
+		System.out.println("Current session user: " + (userSession != null ? userSession.getName() : "null"));
+		System.out.println("Currently registered users: " + registeredUsers.keySet());
 
 		AddUserResponse addUserResponse = new AddUserResponse();
 		es.upm.etsiinf.sos.model.xsd.AddUserResponse response = new es.upm.etsiinf.sos.model.xsd.AddUserResponse();
 		response.setResponse(false);
 
-		if (userSession.equals(ADMIN) && !registeredUsers.containsKey(userName)) {
-			try {
-				UPMAuthenticationAuthorizationWSSkeletonStub.UserBackEnd userBackEnd = new UPMAuthenticationAuthorizationWSSkeletonStub.UserBackEnd();
-				userBackEnd.setName(userName);
-
-				UPMAuthenticationAuthorizationWSSkeletonStub.AddUser addUserRequest = new UPMAuthenticationAuthorizationWSSkeletonStub.AddUser();
-				addUserRequest.setUser(userBackEnd);
-
-				UPMAuthenticationAuthorizationWSSkeletonStub.AddUserResponse serviceResponse = serviceStub
-						.addUser(addUserRequest);
-
-				UPMAuthenticationAuthorizationWSSkeletonStub.AddUserResponseBackEnd backendResponse = serviceResponse
-						.get_return();
-
-				boolean result = backendResponse.getResult();
-				response.setResponse(result);
-
-				if (result) {
-					response.setPwd(backendResponse.getPassword());
-					registeredUsers.put(userName, new MyUser(userName, backendResponse.getPassword()));
-					System.out.println("User added successfully: " + userName);
-				} else {
-					System.out.println("Adding user: " + userName + " operation failed");
-				}
-			} catch (RemoteException e) {
-				e.printStackTrace();
-			}
-		} else {
-			System.out.println("Only admin can add users / or user already exists");
+		if (userSession == null || !userSession.getName().equals("admin")) {
+			System.out.println("ERROR: Only admin can add users. Current user: "
+					+ (userSession != null ? userSession.getName() : "null"));
+			addUserResponse.set_return(response);
+			return addUserResponse;
 		}
+
+		if (registeredUsers.containsKey(userName)) {
+			System.out.println("ERROR: User " + userName + " already exists");
+			addUserResponse.set_return(response);
+			return addUserResponse;
+		}
+
+		try {
+			System.out.println("Preparing external service call...");
+
+			UPMAuthenticationAuthorizationWSSkeletonStub.UserBackEnd userBackEnd = new UPMAuthenticationAuthorizationWSSkeletonStub.UserBackEnd();
+			userBackEnd.setName(userName);
+
+			UPMAuthenticationAuthorizationWSSkeletonStub.AddUser addUserRequest = new UPMAuthenticationAuthorizationWSSkeletonStub.AddUser();
+			addUserRequest.setUser(userBackEnd);
+
+			UPMAuthenticationAuthorizationWSSkeletonStub.AddUserResponse serviceResponse = serviceStub
+					.addUser(addUserRequest);
+
+			UPMAuthenticationAuthorizationWSSkeletonStub.AddUserResponseBackEnd backendResponse = serviceResponse
+					.get_return();
+
+			boolean result = backendResponse.getResult();
+			System.out.println("External service result: " + result);
+			response.setResponse(result);
+
+			if (result) {
+				String generatedPassword = backendResponse.getPassword();
+				response.setPwd(generatedPassword);
+
+				System.out.println("Generated password: " + generatedPassword);
+
+				User newUser = new User();
+				newUser.setName(userName);
+				newUser.setPwd(generatedPassword);
+
+				registeredUsers.put(userName, newUser);
+				System.out.println("User added successfully: " + userName);
+				System.out.println("Updated registered users: " + registeredUsers.keySet());
+			} else {
+				System.out.println("ERROR: External service failed to add user: " + userName);
+				System.out.println("Possible reasons: ");
+				System.out.println("- User already exists in external system");
+				System.out.println("- External service unavailable");
+				System.out.println("- Permission denied");
+			}
+		} catch (RemoteException e) {
+			e.printStackTrace();
+
+		}
+		System.out.println("=== End addUser ===");
 		addUserResponse.set_return(response);
 		return addUserResponse;
 	}
@@ -122,9 +152,16 @@ public class ETSIINFLibrarySkeleton {
 	 */
 
 	public es.upm.etsiinf.sos.LoginResponse login(es.upm.etsiinf.sos.Login login) {
+		System.out.println("\n=== Start login ===");
+
 		User user = login.getArgs0();
 		String loginUserName = login.getArgs0().getName();
 		String loginUserPwd = login.getArgs0().getPwd();
+
+		System.out.println("Attempting login for user: " + loginUserName);
+		System.out.println("Current session user: " + (userSession != null ? userSession.getName() : "null"));
+		System.out.println("Currently registered users: " + registeredUsers.keySet());
+		System.out.println("Active user sessions: " + activeUserSessions.keySet());
 
 		LoginResponse loginResponse = new LoginResponse();
 		Response response = new Response();
@@ -132,20 +169,24 @@ public class ETSIINFLibrarySkeleton {
 
 		// Case 1: User is already logged in
 		if (userSession != null) {
-			if (loginUserName.equals(userSession.getUserName())) {
+			if (loginUserName.equals(userSession.getName())) {
 				response.setResponse(true);
-				System.out.println("User: " + loginUserName + " is already logged in. SessionID: " + sessionId);
+				System.out.println("User " + loginUserName + " is already logged in.");
 			} else {
-				System.out.println("A different user is attempting to log in to the current session: " + loginUserName);
+				System.out.println("A different user (" + loginUserName
+						+ ") is attempting to log in to the current session");
+				System.out.println("Current session belongs to: " + userSession.getName());
 			}
 			// Case 2: User is ADMIN and not logged in
-		} else if (loginUserName.equals(ADMIN.getUserName()) && loginUserPwd.equals(ADMIN.getPassword())) {
-			userSession = ADMIN;
+		} else if (loginUserName.equals("admin") && loginUserPwd.equals("admin")) {
+			userSession = user;
 			response.setResponse(true);
 			System.out.println("Admin logged in successfully");
-			// Case 3: User is not logged in
+			// Case 3: Regular user login
 		} else {
 			try {
+				System.out.println("Preparing external service call...");
+
 				UPMAuthenticationAuthorizationWSSkeletonStub.LoginBackEnd loginBackEnd = new UPMAuthenticationAuthorizationWSSkeletonStub.LoginBackEnd();
 				loginBackEnd.setName(loginUserName);
 				loginBackEnd.setPassword(loginUserPwd);
@@ -160,32 +201,47 @@ public class ETSIINFLibrarySkeleton {
 						.get_return();
 
 				boolean result = backendResponse.getResult();
+				response.setResponse(result);
+				System.out.println("External service result: " + result);
+
 				if (result) {
 					if (!registeredUsers.containsKey(loginUserName)) {
-						MyUser loginUser = new MyUser(loginUserName, loginUserPwd);
+						System.out.println("User not found in local registry, adding...");
+						User loginUser = new User();
+						loginUser.setName(loginUserName);
+						loginUser.setPwd(loginUserPwd);
 						registeredUsers.put(loginUserName, loginUser);
 						userSession = loginUser;
-						System.out.println("User: " + loginUserName
+						System.out.println("User " + loginUserName
 								+ " was not registered locally, added to local register and logged in successfully");
 					} else {
 						userSession = registeredUsers.get(loginUserName);
-						System.out.println("User: " + loginUserName + " logged in successfully");
+						System.out.println("User " + loginUserName + " logged in successfully");
 					}
+
 					if (!activeUserSessions.containsKey(loginUserName)) {
+						System.out.println("Creating new session for user: " + loginUserName);
 						List<ETSIINFLibrarySkeleton> session = new ArrayList<>();
 						session.add(this);
 						activeUserSessions.put(loginUserName, session);
 					} else {
+						System.out.println("Adding to existing session for user: " + loginUserName);
 						activeUserSessions.get(loginUserName).add(this);
 					}
-					response.setResponse(true);
+					// response.setResponse(true);
 				} else {
-					System.out.println("Logging user: " + loginUserName + " operation failed");
+					System.out.println("ERROR: Logging user " + loginUserName + " operation failed");
+					System.out.println("Possible reasons:");
+					System.out.println("- Invalid credentials");
+					System.out.println("- User not registered in external system");
+					System.out.println("- External service error");
 				}
 			} catch (RemoteException e) {
-				System.out.println(e.getMessage());
+				e.printStackTrace();
 			}
 		}
+
+		System.out.println("=== End login ===");
 		loginResponse.set_return(response);
 		return loginResponse;
 	}
@@ -198,22 +254,42 @@ public class ETSIINFLibrarySkeleton {
 	 */
 
 	public es.upm.etsiinf.sos.LogoutResponse logout(es.upm.etsiinf.sos.Logout logout) {
+		System.out.println("\n=== Start logout ===");
+
 		LogoutResponse logoutResponse = new LogoutResponse();
 		Response response = new Response();
 		response.setResponse(false);
 
-		String userName = userSession.getUserName();
-		if (userName == null) {
-			System.out.println("No user is logged in");
+		if (userSession == null) {
+			System.out.println("No user is currently logged in");
 		} else {
+			String userName = userSession.getName();
+			System.out.println("Attempting to logout user: " + userName);
+			System.out.println("Current active sessions: ");
+			for (ETSIINFLibrarySkeleton session : activeUserSessions.get(userName)) {
+				System.out.println(" - Session ID: " + session);
+			}
+			System.out.println("Number of sessions for user " + userName + ": "
+					+ (activeUserSessions.containsKey(userName) ? activeUserSessions.get(userName).size() : 0));
+
 			if (activeUserSessions.containsKey(userName)) {
 				int sessions = activeUserSessions.get(userName).size();
+				System.out.println("Removing " + sessions + " session(s) for user: " + userName);
+
 				activeUserSessions.remove(userName);
 				response.setResponse(true);
-				System.out.println("User: " + userName + " logged out successfully. Removed sessions: " + sessions);
+
+				System.out.println("User " + userName + " logged out successfully");
+				System.out.println("Removed sessions: " + sessions);
+				System.out.println("Active sessions: " + activeUserSessions.keySet());
+			} else {
+				System.out.println("No active sessions found for user: " + userName);
 			}
 			userSession = null;
+			System.out.println("User session cleared");
 		}
+
+		System.out.println("=== End logout ===");
 		logoutResponse.set_return(response);
 		return logoutResponse;
 	}
@@ -226,50 +302,77 @@ public class ETSIINFLibrarySkeleton {
 	 */
 
 	public es.upm.etsiinf.sos.DeleteUserResponse deleteUser(es.upm.etsiinf.sos.DeleteUser deleteUser) {
+		System.out.println("\n=== Start deleteUser ===");
+
 		String userNameToDelete = deleteUser.getArgs0().getUsername();
+		System.out.println("User to delete: " + userNameToDelete);
+
+		System.out.println("User currently logged: " + userSession.getName());
+		System.out.println("Registered users: " + registeredUsers.keySet());
 
 		DeleteUserResponse deleteUserResponse = new DeleteUserResponse();
 		Response response = new Response();
 		response.setResponse(false);
 
-		if (userNameToDelete.equals(ADMIN.getUserName())) {
+		if (userNameToDelete.equals("admin")) {
 			System.out.println("Cannot delete admin user");
-		} else if (hasBorrowedBooks(userNameToDelete)) {
-			System.out.println("User: " + userNameToDelete + " has books borrowed, can`t delete this user");
-		} else if (userSession != null && userSession.getUserName().equals(ADMIN.getUserName())) {
-			try {
-				UPMAuthenticationAuthorizationWSSkeletonStub.UserBackEnd userBackEnd = new UPMAuthenticationAuthorizationWSSkeletonStub.UserBackEnd();
-				userBackEnd.setName(userNameToDelete);
-
-				UPMAuthenticationAuthorizationWSSkeletonStub.RemoveUser deleteUserRequest = new UPMAuthenticationAuthorizationWSSkeletonStub.RemoveUser();
-				deleteUserRequest.setName(deleteUser.localArgs0.getUsername());
-				deleteUserRequest.setPassword(registeredUsers.get(userNameToDelete).getPassword());
-
-				UPMAuthenticationAuthorizationWSSkeletonStub.RemoveUserE deleteUserE = new UPMAuthenticationAuthorizationWSSkeletonStub.RemoveUserE();
-				deleteUserE.setRemoveUser(deleteUserRequest);
-
-				UPMAuthenticationAuthorizationWSSkeletonStub.RemoveUserResponseE serviceResponse = serviceStub
-						.removeUser(deleteUserE);
-
-				UPMAuthenticationAuthorizationWSSkeletonStub.RemoveUserResponse backendResponse = serviceResponse
-						.get_return();
-
-				boolean result = backendResponse.getResult();
-				response.setResponse(result);
-
-				if (result) {
-					registeredUsers.remove(userNameToDelete);
-					System.out.println("Local register of the user: " + userNameToDelete + " was deleted successfully");
-					if (activeUserSessions.containsKey(userNameToDelete)) {
-						activeUserSessions.remove(userNameToDelete);
-					}
-				}
-			} catch (RemoteException e) {
-				System.out.println(e.getMessage());
-			}
-		} else {
-			System.out.println("Can`t delete this user");
+			deleteUserResponse.set_return(response);
+			return deleteUserResponse;
 		}
+
+		if (hasBorrowedBooks(userNameToDelete)) {
+			System.out.println("User: " + userNameToDelete + " has books borrowed");
+			deleteUserResponse.set_return(response);
+			return deleteUserResponse;
+		}
+
+		if (!userSession.getName().equals("admin") || !registeredUsers.containsKey(userNameToDelete)) {
+			System.out.println("Must be admin to delete this user / or user does not exist");
+			deleteUserResponse.set_return(response);
+			return deleteUserResponse;
+		}
+
+		try {
+			UPMAuthenticationAuthorizationWSSkeletonStub.UserBackEnd userBackEnd = new UPMAuthenticationAuthorizationWSSkeletonStub.UserBackEnd();
+			userBackEnd.setName(userNameToDelete);
+
+			UPMAuthenticationAuthorizationWSSkeletonStub.RemoveUser deleteUserRequest = new UPMAuthenticationAuthorizationWSSkeletonStub.RemoveUser();
+			deleteUserRequest.setName(deleteUser.localArgs0.getUsername());
+			deleteUserRequest.setPassword(registeredUsers.get(userNameToDelete).getPwd());
+
+			UPMAuthenticationAuthorizationWSSkeletonStub.RemoveUserE deleteUserE = new UPMAuthenticationAuthorizationWSSkeletonStub.RemoveUserE();
+			deleteUserE.setRemoveUser(deleteUserRequest);
+
+			System.out.println("Preparing external service call...");
+			UPMAuthenticationAuthorizationWSSkeletonStub.RemoveUserResponseE serviceResponse = serviceStub
+					.removeUser(deleteUserE);
+
+			UPMAuthenticationAuthorizationWSSkeletonStub.RemoveUserResponse backendResponse = serviceResponse
+					.get_return();
+
+			boolean result = backendResponse.getResult();
+			System.out.println("External service result: " + result);
+			response.setResponse(result);
+
+			if (result) {
+				System.out.println("Deleting user: " + userNameToDelete + " from local register");
+				registeredUsers.remove(userNameToDelete);
+
+				if (activeUserSessions.containsKey(userNameToDelete)) {
+					System.out.println("Deleting " + userNameToDelete + "`s active sessions");
+					activeUserSessions.remove(userNameToDelete);
+				}
+				System.out.println("User: " + userNameToDelete + " deleted");
+				System.out.println("Registered users: " + registeredUsers.keySet());
+			} else {
+				System.out.println("ERROR: failed to delete user: " + userNameToDelete);
+			}
+
+		} catch (RemoteException e) {
+			System.err.println("RemoteException occurred while deleting user");
+			e.printStackTrace();
+		}
+		System.out.println("=== End deleteUser ===");
 		deleteUserResponse.set_return(response);
 		return deleteUserResponse;
 	}
@@ -282,23 +385,41 @@ public class ETSIINFLibrarySkeleton {
 	 */
 
 	public es.upm.etsiinf.sos.ChangePasswordResponse changePassword(es.upm.etsiinf.sos.ChangePassword changePassword) {
+		System.out.println("\n=== Start changePassword ===");
+
 		String oldPassword = changePassword.getArgs0().getOldpwd();
 		String newPassword = changePassword.getArgs0().getNewpwd();
+
+		System.out.println(
+				"Attempting password change for user: " + (userSession != null ? userSession.getName() : "null"));
+		System.out.println("Old password provided: " + (oldPassword != null ? "****" : "null"));
+		System.out.println("New password provided: " + (newPassword != null ? "****" : "null"));
 
 		ChangePasswordResponse changePwdResponse = new ChangePasswordResponse();
 		Response response = new Response();
 		response.setResponse(false);
 
-		if (userSession.equals(ADMIN) && oldPassword.equals(ADMIN.getPassword())) {
+		if (userSession == null) {
+			System.out.println("No user is currently logged in");
+			changePwdResponse.set_return(response);
+			System.out.println("=== End changePassword ===");
+			return changePwdResponse;
+		}
+
+		if (userSession.getName().equals("admin") && oldPassword.equals("admin")) {
+			System.out.println("Processing admin password change...");
 			ADMIN.setPassword(newPassword);
 			response.setResponse(true);
 			System.out.println("Admin password changed successfully");
-		} else if (userSession.getPassword().equals(oldPassword)) {
+		} else if (userSession.getPwd().equals(oldPassword)) {
+			System.out.println("Processing user password change...");
 			try {
+				System.out.println("Preparing external service call...");
+
 				UPMAuthenticationAuthorizationWSSkeletonStub.ChangePasswordBackEnd changePwdBackEnd = new UPMAuthenticationAuthorizationWSSkeletonStub.ChangePasswordBackEnd();
 				changePwdBackEnd.setOldpwd(oldPassword);
 				changePwdBackEnd.setNewpwd(newPassword);
-				changePwdBackEnd.setName(userSession.getUserName());
+				changePwdBackEnd.setName(userSession.getName());
 
 				UPMAuthenticationAuthorizationWSSkeletonStub.ChangePassword changePwdRequest = new UPMAuthenticationAuthorizationWSSkeletonStub.ChangePassword();
 				changePwdRequest.setChangePassword(changePwdBackEnd);
@@ -310,20 +431,32 @@ public class ETSIINFLibrarySkeleton {
 						.get_return();
 
 				boolean result = backendResponse.getResult();
+				System.out.println("External service result: " + result);
 				response.setResponse(result);
 
 				if (result) {
-					userSession.setPassword(newPassword);
-					System.out.println("User password changed successfully");
+					userSession.setPwd(newPassword);
+					System.out.println("Password changed for user: " + userSession.getName());
+					System.out.println("Local session password updated");
 				} else {
-					System.out.println("User password changed failed");
+					System.out.println("ERROR: Password change failed for user: " + userSession.getName());
+					System.out.println("Possible reasons:");
+					System.out.println("- External service rejected the change");
+					System.out.println("- Password doesn't meet requirements");
+					System.out.println("- Network or service error");
 				}
 			} catch (RemoteException e) {
-				System.out.println(e.getMessage());
+				e.printStackTrace();
 			}
 		} else {
-			System.out.println("Not logged in or old password is wrong");
+			System.out.println("ERROR: Password change failed");
+			System.out.println("Possible reasons:");
+			System.out.println("- Old password doesn't match");
+			System.out.println("- No valid session");
+			System.out.println("- User not authorized");
 		}
+
+		System.out.println("=== End changePassword ===");
 		changePwdResponse.set_return(response);
 		return changePwdResponse;
 	}
