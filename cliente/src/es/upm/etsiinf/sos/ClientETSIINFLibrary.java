@@ -18,6 +18,14 @@ import es.upm.etsiinf.sos.ETSIINFLibraryStub.RemoveBook;
 import es.upm.etsiinf.sos.ETSIINFLibraryStub.GetBook;
 import es.upm.etsiinf.sos.ETSIINFLibraryStub.ListBooks;
 import es.upm.etsiinf.sos.ETSIINFLibraryStub.ListBooksResponse;
+import es.upm.etsiinf.sos.ETSIINFLibraryStub.GetBooksFromAuthor;
+import es.upm.etsiinf.sos.ETSIINFLibraryStub.GetBooksFromAuthorResponse;
+import es.upm.etsiinf.sos.ETSIINFLibraryStub.ListBorrowedBooks;
+import es.upm.etsiinf.sos.ETSIINFLibraryStub.ListBorrowedBooksResponse;
+import es.upm.etsiinf.sos.ETSIINFLibraryStub.BorrowBook;
+import es.upm.etsiinf.sos.ETSIINFLibraryStub.BorrowBookResponse;
+import es.upm.etsiinf.sos.ETSIINFLibraryStub.ReturnBook;
+import es.upm.etsiinf.sos.ETSIINFLibraryStub.ReturnBookResponse;
 
 import java.rmi.RemoteException;
 
@@ -50,6 +58,12 @@ public class ClientETSIINFLibrary {
 		testRemoveBook();
 		testGetBook();
 		testListBooks();
+
+		testGetFromAuthor();
+		testBorrowBook();
+		testListBorrowedBooks(); // después del borrow para ver que se prestó
+		testReturnBook();
+		testListBorrowedBooks(); // después del return para ver que ya no está
 
 	}
 
@@ -318,4 +332,99 @@ public class ClientETSIINFLibrary {
 		String[] books2 = response2.get_return().getBookNames();
 		System.out.println(books2);
 	}
+
+	private static void testGetFromAuthor() throws RemoteException {
+		System.out.println("\n--- testGetFromAuthor ---");
+		loginAsAdmin();
+
+		// Añadir un libro de un autor específico
+		Book book = new Book();
+		book.setName("LibroAutor");
+		book.setISSN("2222222222");
+		book.setAuthors(new String[] { "AutorEjemplo" });
+		AddBook addBook = new AddBook();
+		addBook.setArgs0(book);
+		stub.addBook(addBook);
+
+		// Añadir otro libro para el mismo autor
+		Book book2 = new Book();
+		book2.setName("LibroAutor2");
+		book2.setISSN("2222222223");
+		book2.setAuthors(new String[] { "AutorEjemplo" });
+		AddBook addBook2 = new AddBook();
+		addBook2.setArgs0(book2);
+		stub.addBook(addBook2);
+
+		GetBooksFromAuthor get = new GetBooksFromAuthor();
+		ETSIINFLibraryStub.Author author = new ETSIINFLibraryStub.Author();
+		author.setName("AutorEjemplo");
+		get.setArgs0(author);
+
+		String[] books = stub.getBooksFromAuthor(get).get_return().getBookNames();
+		System.out.println("Libros de 'AutorEjemplo':");
+		for (String b : books) {
+			System.out.println("- " + b);
+		}
+
+		logout();
+	}
+
+	private static void testBorrowBook() throws RemoteException {
+		System.out.println("\n--- testBorrowBook ---");
+
+		loginAsAdmin();
+		Book book = new Book();
+		book.setName("LibroPrestamo");
+		book.setISSN("3333333333");
+		book.setAuthors(new String[] { "AutorPrestamo" });
+		AddBook addBook = new AddBook();
+		addBook.setArgs0(book);
+		stub.addBook(addBook);
+		logout();
+
+		loginAsUser("changePasswordTest", "changePasswordTestNewPassword");
+
+		BorrowBook borrow = new BorrowBook();
+		borrow.setArgs0("3333333333");
+		boolean borrowed = stub.borrowBook(borrow).get_return().getResponse();
+
+		System.out.println("Préstamo realizado: " + (borrowed ? "OK" : "FAIL"));
+		logout();
+	}
+
+	private static void testReturnBook() throws RemoteException {
+		System.out.println("\n--- testReturnBook ---");
+
+		// Usuario devuelve el libro
+		loginAsUser("changePasswordTest", "changePasswordTestNewPassword");
+
+		ReturnBook returnBook = new ReturnBook();
+		returnBook.setArgs0("3333333333");
+		boolean returned = stub.returnBook(returnBook).get_return().getResponse();
+
+		System.out.println("Devolución realizada: " + (returned ? "OK" : "FAIL"));
+		logout();
+	}
+
+	private static void testListBorrowedBooks() throws RemoteException {
+		System.out.println("\n--- testListBorrowedBooks ---");
+
+		loginAsUser("changePasswordTest", "changePasswordTestNewPassword");
+
+		ListBorrowedBooks list = new ListBorrowedBooks();
+		ListBorrowedBooksResponse response = stub.listBorrowedBooks(list);
+		String[] libros = response.get_return().getBookNames();
+
+		System.out.println("Libros prestados por el usuario:");
+		if (libros != null && libros.length > 0) {
+			for (String libro : libros) {
+				System.out.println("- " + libro);
+			}
+		} else {
+			System.out.println("Ningún libro prestado actualmente.");
+		}
+
+		logout();
+	}
+
 }
