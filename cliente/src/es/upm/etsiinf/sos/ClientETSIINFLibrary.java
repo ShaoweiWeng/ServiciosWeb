@@ -2,6 +2,7 @@ package es.upm.etsiinf.sos;
 
 import es.upm.etsiinf.sos.ETSIINFLibraryStub.AddUser;
 import es.upm.etsiinf.sos.ETSIINFLibraryStub.AddUserResponseE;
+import es.upm.etsiinf.sos.ETSIINFLibraryStub.Book;
 import es.upm.etsiinf.sos.ETSIINFLibraryStub.ChangePassword;
 import es.upm.etsiinf.sos.ETSIINFLibraryStub.ChangePasswordResponse;
 import es.upm.etsiinf.sos.ETSIINFLibraryStub.DeleteUser;
@@ -12,6 +13,11 @@ import es.upm.etsiinf.sos.ETSIINFLibraryStub.Logout;
 import es.upm.etsiinf.sos.ETSIINFLibraryStub.PasswordPair;
 import es.upm.etsiinf.sos.ETSIINFLibraryStub.User;
 import es.upm.etsiinf.sos.ETSIINFLibraryStub.Username;
+import es.upm.etsiinf.sos.ETSIINFLibraryStub.AddBook;
+import es.upm.etsiinf.sos.ETSIINFLibraryStub.RemoveBook;
+import es.upm.etsiinf.sos.ETSIINFLibraryStub.GetBook;
+import es.upm.etsiinf.sos.ETSIINFLibraryStub.ListBooks;
+import es.upm.etsiinf.sos.ETSIINFLibraryStub.ListBooksResponse;
 
 import java.rmi.RemoteException;
 
@@ -39,6 +45,12 @@ public class ClientETSIINFLibrary {
 		loginAsUser("changePasswordTest", "changePasswordTestNewPassword");
 		changePassword("changePasswordTestNewPassword", "changePasswordTestNewPassword");
 		logout();
+
+		testAddBook();
+		testRemoveBook();
+		testGetBook();
+		testListBooks();
+
 	}
 
 	private static void loginAsAdmin() throws RemoteException {
@@ -145,4 +157,138 @@ public class ClientETSIINFLibrary {
 		}
 	}
 
+	private static void testAddBook() throws RemoteException {
+		System.out.println("\n--- testAddBook ---");
+		// 1. Añadir libro como admin
+		System.out.println("AddBook exitoso como admin");
+		loginAsAdmin();
+		Book book = new Book();
+		book.setName("LibroTest");
+		book.setISSN("1234567890");
+		book.setAuthors(new String[] { "Autor1", "Autor2" });
+		AddBook addBook = new AddBook();
+		addBook.setArgs0(book);
+		boolean added = stub.addBook(addBook).get_return().getResponse();
+		System.out.println("Admin añade libro: " + (added ? "OK" : "FAIL"));
+		logout();
+
+		// 2. Añadir libro como usuario no admin
+		System.out.println("AddBook como usuario no admin, debe fallar");
+		loginAsUser("changePasswordTest", "changePasswordTestNewPassword");
+		AddBook addBook2 = new AddBook();
+		Book book2 = new Book();
+		book2.setName("LibroTest2");
+		book2.setISSN("0987654321");
+		book2.setAuthors(new String[] { "Autor3" });
+		addBook2.setArgs0(book2);
+		boolean added2 = stub.addBook(addBook2).get_return().getResponse();
+		System.out.println("Usuario no admin añade libro: " + (added2 ? "OK" : "FAIL"));
+		logout();
+
+		// 3. Añadir libro con datos incompletos
+		System.out.println("AddBook con datos incompletos, debe fallar");
+		loginAsAdmin();
+		AddBook addBook3 = new AddBook();
+		Book book3 = new Book();
+		book3.setName(""); // nombre vacío
+		book3.setISSN(""); // ISSN vacío
+		book3.setAuthors(new String[] {}); // autores vacío
+		addBook3.setArgs0(book3);
+		boolean added3 = stub.addBook(addBook3).get_return().getResponse();
+		System.out.println("Admin añade libro con datos incompletos: " + (added3 ? "OK" : "FAIL"));
+
+		// 4. Añadir libro que ya existe
+		System.out.println("AddBook duplicado, exitoso debe añadir ejemplar");
+		Book book4 = new Book();
+		book4.setName("LibroTest");
+		book4.setISSN("1234567890");
+		book4.setAuthors(new String[] { "Autor1", "Autor2" });
+		AddBook addBook4 = new AddBook();
+		addBook4.setArgs0(book4);
+		boolean added4 = stub.addBook(addBook4).get_return().getResponse();
+		System.out.println("Admin añade libro duplicado: " + (added4 ? "OK" : "FAIL"));
+		logout();
+	}
+
+	private static void testRemoveBook() throws RemoteException {
+		System.out.println("\n--- testRemoveBook ---");
+		// 1. Eliminar libro como admin
+		System.out.println("RemoveBook exitoso como admin");
+		loginAsAdmin();
+		RemoveBook removeBook = new RemoveBook();
+		removeBook.setArgs0("1234567890");
+		boolean removed = stub.removeBook(removeBook).get_return().getResponse();
+		System.out.println("Admin elimina libro: " + (removed ? "OK" : "FAIL"));
+		logout();
+
+		// 2. Eliminar libro como usuario no admin
+		System.out.println("RemoveBook como usuario no admin, debe fallar");
+		loginAsUser("changePasswordTest", "changePasswordTestNewPassword");
+		RemoveBook removeBook2 = new RemoveBook();
+		removeBook2.setArgs0("0987654321");
+		boolean removed2 = stub.removeBook(removeBook2).get_return().getResponse();
+		System.out.println("Usuario no admin elimina libro: " + (removed2 ? "OK" : "FAIL"));
+		logout();
+
+		// 3. Eliminar libro que no existe
+		System.out.println("RemoveBook de libro inexistente, debe fallar");
+		loginAsAdmin();
+		RemoveBook removeBook3 = new RemoveBook();
+		removeBook3.setArgs0("noexiste");
+		boolean removed3 = stub.removeBook(removeBook3).get_return().getResponse();
+		System.out.println("Admin elimina libro inexistente: " + (removed3 ? "OK" : "FAIL"));
+		logout();
+	}
+
+	private static void testGetBook() throws RemoteException {
+		System.out.println("\n--- testGetBook ---");
+		// 1. Obtener libro existente
+		System.out.println("GetBook existente");
+		loginAsAdmin();
+		AddBook addBook = new AddBook();
+		Book book = new Book();
+		book.setName("LibroGet");
+		book.setISSN("1111111111");
+		book.setAuthors(new String[] { "AutorGet" });
+		addBook.setArgs0(book);
+		stub.addBook(addBook);
+		GetBook getBook = new GetBook();
+		getBook.setArgs0("1111111111");
+		Book result = stub.getBook(getBook).get_return();
+		System.out.println(result.getName() + "\n" + result.getISSN() + "\n" + result.getAuthors()[0]);
+
+		// 2. Obtener libro inexistente
+		GetBook getBook2 = new GetBook();
+		getBook2.setArgs0("noexiste");
+		Book result2 = stub.getBook(getBook2).get_return();
+		System.out.println("GetBook inexistente: " + result2);
+		logout();
+
+		// 3. Obtener libro sin autenticación
+		GetBook getBook3 = new GetBook();
+		getBook3.setArgs0("1111111111");
+		Book result3 = stub.getBook(getBook3).get_return();
+		System.out.println("GetBook sin autenticación: " + result3);
+	}
+
+	private static void testListBooks() throws RemoteException {
+		System.out.println("\n--- testListBooks ---");
+		// 1. Listar libros autenticado
+		System.out.println("ListBooks autenticado");
+		loginAsAdmin();
+		ListBooks listBooks = new ListBooks();
+		ListBooksResponse response = stub.listBooks(listBooks);
+		String[] books = response.get_return().getBookNames();
+		for (String libro : books) {
+			System.out.println(libro + "\n");
+		}
+		logout();
+
+		// 2. Listar libros sin autenticación
+		System.out.println("ListBooks sin autenticación");
+		ListBooks listBooks2 = new ListBooks();
+		ListBooksResponse response2 = stub.listBooks(listBooks2);
+		String[] books2 = response2.get_return().getBookNames();
+		System.out.println(books2);
+	}
 }
