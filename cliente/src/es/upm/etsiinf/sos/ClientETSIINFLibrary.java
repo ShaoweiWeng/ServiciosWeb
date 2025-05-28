@@ -61,10 +61,11 @@ public class ClientETSIINFLibrary {
 
 		testGetFromAuthor();
 		testBorrowBook();
-		testListBorrowedBooks(); // después del borrow para ver que se prestó
+		System.out.println("--- Listar libros prestados del usuario changePasswordTest después del borrow para ver que se prestó el libro ---");
+		testListBorrowedBooks();
 		testReturnBook();
-		testListBorrowedBooks(); // después del return para ver que ya no está
-
+		System.out.println("--- Listar libros prestados del usuario changePasswordTest después del return para ver que ya no está el libro ---");
+		testListBorrowedBooks();
 	}
 
 	private static void loginAsAdmin() throws RemoteException {
@@ -373,6 +374,7 @@ public class ClientETSIINFLibrary {
 		System.out.println("\n--- testBorrowBook ---");
 
 		loginAsAdmin();
+		System.out.println("--- Añadiendo libro para préstamo ---");
 		Book book = new Book();
 		book.setName("LibroPrestamo");
 		book.setISSN("3333333333");
