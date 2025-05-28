@@ -249,31 +249,53 @@ public class ClientETSIINFLibrary {
 		Book book = new Book();
 		book.setName("LibroGet");
 		book.setISSN("1111111111");
-		book.setAuthors(new String[] { "AutorGet" });
+		book.setAuthors(new String[] { "AutorGet1", "AutorGet2", "AutorGet3" });
 		addBook.setArgs0(book);
 		stub.addBook(addBook);
 		GetBook getBook = new GetBook();
 		getBook.setArgs0("1111111111");
 		Book result = stub.getBook(getBook).get_return();
-		System.out.println("Nombre: " + result.getName() + "\n" + "ISSN: " + result.getISSN() + "\n" + "Autores: "
-				+ result.getAuthors()[0]);
+		System.out.println("Nombre: " + result.getName());
+		System.out.println("ISSN: " + result.getISSN());
+		System.out.print("Autores: ");
+		if (result.getAuthors() != null && result.getAuthors().length > 0) {
+			for (int i = 0; i < result.getAuthors().length; i++) {
+				System.out.print(result.getAuthors()[i]);
+				if (i < result.getAuthors().length - 1) {
+					System.out.print(", ");
+				}
+			}
+			System.out.println();
+		} else {
+			System.out.println("null");
+		}
 
 		// 2. Obtener libro inexistente
 		GetBook getBook2 = new GetBook();
 		getBook2.setArgs0("noexiste");
 		Book result2 = stub.getBook(getBook2).get_return();
 		System.out.println(
-				"---GetBook inexistente---\n" + "Nombre: " + result2.getName() + "\n" + "ISSN: " + result2.getISSN()
-						+ "\n" + "Autores: "
-						+ result2.getAuthors()[0]);
+				"---GetBook inexistente---\n"
+						+ "Nombre: " + (result2 != null && result2.getName() != null ? result2.getName() : "null")
+						+ "\n"
+						+ "ISSN: " + (result2 != null && result2.getISSN() != null ? result2.getISSN() : "null") + "\n"
+						+ "Autores: "
+						+ (result2 != null && result2.getAuthors() != null && result2.getAuthors()[0] != null
+								? result2.getAuthors()[0]
+								: "null"));
 		logout();
 
 		// 3. Obtener libro sin autenticación
 		GetBook getBook3 = new GetBook();
 		getBook3.setArgs0("1111111111");
 		Book result3 = stub.getBook(getBook3).get_return();
-		System.out.println("---GetBook sin autenticación---\n" + "Nombre: " + result3.getName() + "\n"
-				+ "ISSN: " + result3.getISSN() + "\n" + "Autores: " + result3.getAuthors()[0]);
+		System.out.println("---GetBook sin autenticación---\n"
+				+ "Nombre: " + (result3 != null && result3.getName() != null ? result3.getName() : "null") + "\n"
+				+ "ISSN: " + (result3 != null && result3.getISSN() != null ? result3.getISSN() : "null") + "\n"
+				+ "Autores: "
+				+ (result3 != null && result3.getAuthors() != null && result3.getAuthors()[0] != null
+						? result3.getAuthors()[0]
+						: "null"));
 	}
 
 	private static void testListBooks() throws RemoteException {
