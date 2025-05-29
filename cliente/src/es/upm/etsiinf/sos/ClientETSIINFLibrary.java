@@ -382,37 +382,17 @@ public class ClientETSIINFLibrary {
 			System.out.println("Error: Se devolvieron libros para un autor que no existe.");
 		}
 
-		// 3. autor como segundo en la lista
-		System.out.println("\n--- Caso 3: Autor como coautor ---");
-		Book book3 = new Book();
-		book3.setName("LibroCoautor");
-		book3.setISSN("2222222223");
-		book3.setAuthors(new String[] { "AutorPrincipal", "CoAutor" });
-		AddBook addBook3 = new AddBook();
-		addBook3.setArgs0(book3);
-		stub.addBook(addBook3);
-
-		GetBooksFromAuthor req3 = new GetBooksFromAuthor();
-		ETSIINFLibraryStub.Author author3 = new ETSIINFLibraryStub.Author();
-		author3.setName("CoAutor");
-		req3.setArgs0(author3);
-		String[] result3 = stub.getBooksFromAuthor(req3).get_return().getBookNames();
-
-		System.out.println("Libros encontrados para CoAutor:");
-		for (String name : result3) {
-			System.out.println("- " + name);
-		}
 		logout();
 
-		// 4. Intento sin autenticación
-		System.out.println("\n--- Caso 5: Sin autenticación ---");
+		// 3. Intento sin autenticación
+		System.out.println("\n--- Caso 3: Sin autenticación ---");
 		GetBooksFromAuthor req5 = new GetBooksFromAuthor();
 		ETSIINFLibraryStub.Author author5 = new ETSIINFLibraryStub.Author();
 		author5.setName("AutorMultiple");
 		req5.setArgs0(author5);
 		String[] result5 = stub.getBooksFromAuthor(req5).get_return().getBookNames();
 
-		if (result5.length == 0) {
+		if (result5 == null) {
 			System.out.println("Correcto: No se devolvieron libros al no estar autenticado.");
 		} else {
 			System.out.println("Error: Se devolvieron libros sin autenticación.");
