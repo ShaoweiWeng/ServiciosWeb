@@ -62,11 +62,11 @@ public class ClientETSIINFLibrary {
 		testGetFromAuthor();
 		testBorrowBook();
 		System.out.println(
-				"--- Listar libros prestados del usuario changePasswordTest después del borrow para ver que se prestó el libro ---");
+				"\n--- Listar libros prestados del usuario changePasswordTest después del borrow para ver que se prestó el libro ---");
 		testListBorrowedBooks();
 		testReturnBook();
 		System.out.println(
-				"--- Listar libros prestados del usuario changePasswordTest después del return para ver que ya no está el libro ---");
+				"\n--- Listar libros prestados del usuario changePasswordTest después del return para ver que ya no está el libro ---");
 		testListBorrowedBooks();
 	}
 
@@ -403,7 +403,7 @@ public class ClientETSIINFLibrary {
 			System.out.println("- " + name);
 		}
 		logout();
-		
+
 		// 4. Intento sin autenticación
 		System.out.println("\n--- Caso 5: Sin autenticación ---");
 		GetBooksFromAuthor req5 = new GetBooksFromAuthor();
@@ -518,6 +518,18 @@ public class ClientETSIINFLibrary {
 		BorrowBook borrow = new BorrowBook();
 		borrow.setArgs0("4444444444");
 		stub.borrowBook(borrow);
+		ListBorrowedBooks list = new ListBorrowedBooks();
+		ListBorrowedBooksResponse response = stub.listBorrowedBooks(list);
+		String[] libros = response.get_return().getBookNames();
+
+		System.out.println("Libros prestados por el usuario:");
+		if (libros != null && libros.length > 0) {
+			for (String libro : libros) {
+				System.out.println("- " + libro);
+			}
+		} else {
+			System.out.println("Ningún libro prestado actualmente.");
+		}
 		// Usuario devuelve el libro
 		ReturnBook returnBook = new ReturnBook();
 		returnBook.setArgs0("4444444444");
