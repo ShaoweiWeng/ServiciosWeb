@@ -61,10 +61,12 @@ public class ClientETSIINFLibrary {
 
 		testGetFromAuthor();
 		testBorrowBook();
-		System.out.println("--- Listar libros prestados del usuario changePasswordTest después del borrow para ver que se prestó el libro ---");
+		System.out.println(
+				"--- Listar libros prestados del usuario changePasswordTest después del borrow para ver que se prestó el libro ---");
 		testListBorrowedBooks();
 		testReturnBook();
-		System.out.println("--- Listar libros prestados del usuario changePasswordTest después del return para ver que ya no está el libro ---");
+		System.out.println(
+				"--- Listar libros prestados del usuario changePasswordTest después del return para ver que ya no está el libro ---");
 		testListBorrowedBooks();
 	}
 
@@ -337,7 +339,7 @@ public class ClientETSIINFLibrary {
 	private static void testGetFromAuthor() throws RemoteException {
 		System.out.println("\n--- testGetFromAuthor ---");
 		loginAsAdmin();
-
+		System.out.println("\n--- Caso 1: Caso exito con autor existente ---");
 		// Añadir un libro de un autor específico
 		Book book = new Book();
 		book.setName("LibroAutor");
@@ -368,17 +370,72 @@ public class ClientETSIINFLibrary {
 		}
 
 		logout();
+
+		// 2. Autor inexistente
+		System.out.println("\n--- Caso 2: Autor inexistente ---");
+		loginAsAdmin();
+		GetBooksFromAuthor req2 = new GetBooksFromAuthor();
+		ETSIINFLibraryStub.Author author2 = new ETSIINFLibraryStub.Author();
+		author2.setName("AutorNoExiste");
+		req2.setArgs0(author2);
+		String[] result2 = stub.getBooksFromAuthor(req2).get_return().getBookNames();
+		System.out.println("Cantidad de libros encontrados: " + result2.length);
+		if (result2.length == 0) {
+			System.out.println("Correcto: No hay libros para el autor inexistente.");
+		} else {
+			System.out.println("Error: Se devolvieron libros para un autor que no existe.");
+		}
+		logout();
+
+		// 3. autor como segundo en la lista
+		System.out.println("\n--- Caso 3: Autor como coautor ---");
+		loginAsAdmin();
+		Book book3 = new Book();
+		book3.setName("LibroCoautor");
+		book3.setISSN("2222222223");
+		book3.setAuthors(new String[] { "AutorPrincipal", "CoAutor" });
+		AddBook addBook3 = new AddBook();
+		addBook3.setArgs0(book3);
+		stub.addBook(addBook3);
+
+		GetBooksFromAuthor req3 = new GetBooksFromAuthor();
+		ETSIINFLibraryStub.Author author3 = new ETSIINFLibraryStub.Author();
+		author3.setName("CoAutor");
+		req3.setArgs0(author3);
+		String[] result3 = stub.getBooksFromAuthor(req3).get_return().getBookNames();
+
+		System.out.println("Libros encontrados para CoAutor:");
+		for (String name : result3) {
+			System.out.println("- " + name);
+		}
+		logout();
+
+		// 4. Intento sin autenticación
+		System.out.println("\n--- Caso 5: Sin autenticación ---");
+		GetBooksFromAuthor req5 = new GetBooksFromAuthor();
+		ETSIINFLibraryStub.Author author5 = new ETSIINFLibraryStub.Author();
+		author5.setName("AutorMultiple");
+		req5.setArgs0(author5);
+		String[] result5 = stub.getBooksFromAuthor(req5).get_return().getBookNames();
+
+		if (result5.length == 0) {
+			System.out.println("Correcto: No se devolvieron libros al no estar autenticado.");
+		} else {
+			System.out.println("Error: Se devolvieron libros sin autenticación.");
+		}
 	}
 
 	private static void testBorrowBook() throws RemoteException {
 		System.out.println("\n--- testBorrowBook ---");
 
+		// 1. Préstamo correcto
+		System.out.println("--- Caso 1: Préstamo correcto ---");
 		loginAsAdmin();
-		System.out.println("--- Añadiendo libro para préstamo ---");
+		System.out.println("- Añadiendo un nuevo libro para realizar préstamo -");
 		Book book = new Book();
-		book.setName("LibroPrestamo");
-		book.setISSN("3333333333");
-		book.setAuthors(new String[] { "AutorPrestamo" });
+		book.setName("LibroPrestamo1");
+		book.setISSN("3333333331");
+		book.setAuthors(new String[] { "Autor1" });
 		AddBook addBook = new AddBook();
 		addBook.setArgs0(book);
 		stub.addBook(addBook);
@@ -387,24 +444,131 @@ public class ClientETSIINFLibrary {
 		loginAsUser("changePasswordTest", "changePasswordTestNewPassword");
 
 		BorrowBook borrow = new BorrowBook();
-		borrow.setArgs0("3333333333");
+		borrow.setArgs0("3333333331");
 		boolean borrowed = stub.borrowBook(borrow).get_return().getResponse();
-
 		System.out.println("Préstamo realizado: " + (borrowed ? "OK" : "FAIL"));
+		logout();
+
+		// 2. Libro no existe
+		System.out.println("\n--- Caso 2: Préstamo de libro inexistente ---");
+		loginAsUser("changePasswordTest", "changePasswordTestNewPassword");
+
+		BorrowBook borrow2 = new BorrowBook();
+		borrow2.setArgs0("9999999999"); // ISSN inexistente
+		boolean borrowed2 = stub.borrowBook(borrow2).get_return().getResponse();
+		System.out.println("Préstamo de libro inexistente: " + (borrowed2 ? "OK" : "FAIL"));
+		logout();
+
+		// 3. Usuario ya ha tomado el libro
+		System.out.println("\n--- Caso 3: Préstamo repetido por mismo usuario ---");
+		loginAsAdmin();
+		Book book3 = new Book();
+		book3.setName("LibroPrestamo2");
+		book3.setISSN("3333333332");
+		book3.setAuthors(new String[] { "Autor2" });
+		AddBook addBook3 = new AddBook();
+		addBook3.setArgs0(book3);
+		stub.addBook(addBook3);
+		logout();
+
+		loginAsUser("changePasswordTest", "changePasswordTestNewPassword");
+		BorrowBook borrow3 = new BorrowBook();
+		borrow3.setArgs0("3333333332");
+		boolean firstAttempt = stub.borrowBook(borrow3).get_return().getResponse();
+		boolean secondAttempt = stub.borrowBook(borrow3).get_return().getResponse();
+		System.out.println("Primer préstamo: " + (firstAttempt ? "OK" : "FAIL"));
+		System.out.println("Segundo préstamo (debería fallar): " + (secondAttempt ? "OK" : "FAIL"));
+		logout();
+
+		// 4. Préstamo sin login
+		System.out.println("\n--- Caso 4: Préstamo sin autenticación ---");
+		BorrowBook borrow4 = new BorrowBook();
+		borrow4.setArgs0("3333333332");
+		boolean borrowed4 = stub.borrowBook(borrow4).get_return().getResponse();
+		System.out.println("Préstamo sin login: " + (borrowed4 ? "OK" : "FAIL"));
+
+		// 5. ISSN nulo o vacío
+		System.out.println("\n--- Caso 5: ISSN nulo o vacío ---");
+		loginAsUser("changePasswordTest", "changePasswordTestNewPassword");
+
+		BorrowBook borrow5 = new BorrowBook();
+		borrow5.setArgs0("");
+		boolean borrowed5 = stub.borrowBook(borrow5).get_return().getResponse();
+		System.out.println("Préstamo con ISSN vacío: " + (borrowed5 ? "OK" : "FAIL"));
+
+		BorrowBook borrow6 = new BorrowBook();
+		borrow6.setArgs0(null);
+		boolean borrowed6 = stub.borrowBook(borrow6).get_return().getResponse();
+		System.out.println("Préstamo con ISSN nulo: " + (borrowed6 ? "OK" : "FAIL"));
 		logout();
 	}
 
 	private static void testReturnBook() throws RemoteException {
 		System.out.println("\n--- testReturnBook ---");
 
+		// 1. Devolución correcta
+		System.out.println("--- Caso 1: Devolución correcta ---");
+		loginAsAdmin();
+		System.out.println("- Añadiendo un nuevo libro para prestar y devolver -");
+		Book book = new Book();
+		book.setName("LibroDevolucion1");
+		book.setISSN("4444444444");
+		book.setAuthors(new String[] { "AutorDevolucion" });
+		AddBook addBook = new AddBook();
+		addBook.setArgs0(book);
+		stub.addBook(addBook);
+		logout();
+
+		// Usuario toma el libro
+		loginAsUser("changePasswordTest", "changePasswordTestNewPassword");
+		BorrowBook borrow = new BorrowBook();
+		borrow.setArgs0("4444444444");
+		stub.borrowBook(borrow);
 		// Usuario devuelve el libro
+		ReturnBook returnBook = new ReturnBook();
+		returnBook.setArgs0("4444444444");
+		boolean returned = stub.returnBook(returnBook).get_return().getResponse();
+		System.out.println("Devolución realizada: " + (returned ? "OK" : "FAIL"));
+		logout();
+
+		// 2. Devolver libro no prestado
+		System.out.println("\n--- Caso 2: Devolver libro no prestado ---");
+		loginAsUser("changePasswordTest", "changePasswordTestNewPassword");
+		ReturnBook returnBook2 = new ReturnBook();
+		returnBook2.setArgs0("4444444444"); // Ya devuelto
+		boolean returned2 = stub.returnBook(returnBook2).get_return().getResponse();
+		System.out.println("Devolución libro no prestado: " + (returned2 ? "OK" : "FAIL"));
+		logout();
+
+		// 3. Devolver libro inexistente
+		System.out.println("\n--- Caso 3: Devolver libro inexistente ---");
+		loginAsUser("changePasswordTest", "changePasswordTestNewPassword");
+		ReturnBook returnBook3 = new ReturnBook();
+		returnBook3.setArgs0("9999999999"); // ISSN inexistente
+		boolean returned3 = stub.returnBook(returnBook3).get_return().getResponse();
+		System.out.println("Devolución libro inexistente: " + (returned3 ? "OK" : "FAIL"));
+		logout();
+
+		// 4. Devolver libro sin login
+		System.out.println("\n--- Caso 4: Devolver sin login ---");
+		ReturnBook returnBook4 = new ReturnBook();
+		returnBook4.setArgs0("4444444444");
+		boolean returned4 = stub.returnBook(returnBook4).get_return().getResponse();
+		System.out.println("Devolución sin login: " + (returned4 ? "OK" : "FAIL"));
+
+		// 5. Devolver con ISSN nulo o vacío
+		System.out.println("\n--- Caso 5: ISSN nulo o vacío ---");
 		loginAsUser("changePasswordTest", "changePasswordTestNewPassword");
 
-		ReturnBook returnBook = new ReturnBook();
-		returnBook.setArgs0("3333333333");
-		boolean returned = stub.returnBook(returnBook).get_return().getResponse();
+		ReturnBook returnBook5 = new ReturnBook();
+		returnBook5.setArgs0("");
+		boolean returned5 = stub.returnBook(returnBook5).get_return().getResponse();
+		System.out.println("Devolución con ISSN vacío: " + (returned5 ? "OK" : "FAIL"));
 
-		System.out.println("Devolución realizada: " + (returned ? "OK" : "FAIL"));
+		ReturnBook returnBook6 = new ReturnBook();
+		returnBook6.setArgs0(null);
+		boolean returned6 = stub.returnBook(returnBook6).get_return().getResponse();
+		System.out.println("Devolución con ISSN nulo: " + (returned6 ? "OK" : "FAIL"));
 		logout();
 	}
 
