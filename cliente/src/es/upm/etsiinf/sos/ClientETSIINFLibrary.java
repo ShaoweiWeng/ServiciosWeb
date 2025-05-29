@@ -369,27 +369,21 @@ public class ClientETSIINFLibrary {
 			System.out.println("- " + b);
 		}
 
-		logout();
-
 		// 2. Autor inexistente
 		System.out.println("\n--- Caso 2: Autor inexistente ---");
-		loginAsAdmin();
 		GetBooksFromAuthor req2 = new GetBooksFromAuthor();
 		ETSIINFLibraryStub.Author author2 = new ETSIINFLibraryStub.Author();
 		author2.setName("AutorNoExiste");
 		req2.setArgs0(author2);
 		String[] result2 = stub.getBooksFromAuthor(req2).get_return().getBookNames();
-		System.out.println("Cantidad de libros encontrados: " + result2.length);
-		if (result2.length == 0) {
+		if (result2 == null) {
 			System.out.println("Correcto: No hay libros para el autor inexistente.");
 		} else {
 			System.out.println("Error: Se devolvieron libros para un autor que no existe.");
 		}
-		logout();
 
 		// 3. autor como segundo en la lista
 		System.out.println("\n--- Caso 3: Autor como coautor ---");
-		loginAsAdmin();
 		Book book3 = new Book();
 		book3.setName("LibroCoautor");
 		book3.setISSN("2222222223");
@@ -409,7 +403,7 @@ public class ClientETSIINFLibrary {
 			System.out.println("- " + name);
 		}
 		logout();
-
+		
 		// 4. Intento sin autenticación
 		System.out.println("\n--- Caso 5: Sin autenticación ---");
 		GetBooksFromAuthor req5 = new GetBooksFromAuthor();
